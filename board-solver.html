@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>加護ボードが追いかけてkr...</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    button { font-size: 16px; padding: 5px 10px; }
+    .board { margin: 10px 0; }
+    .board-table { border-collapse: collapse; }
+    .board-table td {
+      width: 20px; height: 20px;
+      border: 1px solid #ccc;
+      text-align: center;
+      vertical-align: middle;
+      font-size: 12px;
+    }
+    .solution { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <h1>加護ボードを埋めるだけのプログラム</h1>
+  <p>
+    このプログラムは、加護ボードが埋まる組み合わせを総当たりで探すためのものです。<br>
+    加護片はそれぞれ異なる色で表示しています。<br>
+    検証した組み合わせ数、見つかった解答数、平均検証数、解答比率を表示します。
+  </p>
+  <button id="solveButton">加護ボードを埋める</button>
+  <div id="status"></div>
+  <div id="solutions"></div>
+  <script>
+  const boardStr = [
+    "□□□□□□□□□□□□",
+    "□■■■■■■■■□□□",
+    "□■■■■■■■■□□□",
+    "□■■■■■■■■■□□",
+    "□■■■■■■■■■■□",
+    "□■■■■■■■■■■□",
+    "□■■■■■■■■■■□",
+    "□■□□□■■■■■■□",
+    "□■□□□■■■■■■□",
+    "□■□□□■■■□□■□",
+    "□■■■■■■■□□■□",
+    "□□□□□□□□□□□□"
+  ];
+  const BOARD_ROWS = boardStr.length;
+  const BOARD_COLS = boardStr.reduce((max, row) => Math.max(max, row.length), 0);
+  const boardMask = [];
+  let totalFill = 0;
+  for (let r = 0; r < BOARD_ROWS; r++) {
+    boardMask[r] = [];
+    const row = boardStr[r];
+    for (let c = 0; c < BOARD_COLS; c++) {
+      let ch = (c < row.length) ? row[c] : "□";
+      if (ch === "■") {
+        boardMask[r][c] = true;
+        totalFill++;
+      } else {
+        boardMask[r][c] = false;
+      }
+    }
+  }
+  const sol = [];
+  for (let r = 0; r < BOARD_ROWS; r++) {
+    sol[r] = [];
+    for (let c = 0; c < BOARD_COLS; c++) {
+      sol[r][c] = 0;
+    }
+  }
+  const pieces = [
+    { id: 1, shape: ["□□"], color: "red" },
+    { id: 2, shape: ["□□□"], color: "yellow" },
+    { id: 3, shape: ["□□", "■□"], color: "blue" },
+    { id: 4, shape: ["□□", "□□"], color: "orange" },
+    { id: 5, shape: ["□□□", "■■□"], color: "purple" },
+    { id: 6, shape: ["□□", "□□"], color: "teal" },
+    { id: 7, shape: ["□□□□□"], color: "magenta" },
+    { id: 8, shape: ["□□□□", "□", "□□"], color: "lime" },
+    { id: 9, shape: ["□□□□□□", "■■■■■□", "■■■■■□", "■■■■■□", "■■■■■□"], color: "cyan" },
+    { id: 10, shape: ["□□□□□□", "□", "□", "□", "□"], color: "brown" },
+    { id: 11, shape: ["□□□□", "■■□□", "■■□□", "■■□□"], color: "pink" },
+    { id: 12, shape: ["□□□□", "□□", "□□", "□□"], color: "navy" },
+    { id: 13, shape: ["□□□□□", "□□□■□", "■■■■□"], color: "olive" },
+    { id: 14, shape: ["□□□□□", "□■□□□", "□"], color: "gray" }
+  ];
+  function computeVariant(shape) {
+    if (!Array.isArray(shape) || shape.length === 0) return { cells: [], width: 0, height: 0 };
+    let cells = [];
+    let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+    for (let y = 0; y < shape.length; y++) {
+      const row = shape[y];
+      for (let x = 0; x < row.length; x++) {
+        if (row[x] === "□") {
+          cells.push({ x, y });
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (cells.length === 0) return { cells: [], width: 0, height: 0 };
+    for (let pt of cells) {
+      pt.x -= minX;
+      pt.y -= minY;
+    }
+    let width = maxX - minX + 1;
+    let height = maxY - minY + 1;
+    return { cells, width, height };
+  }
+  function rotateVariant(variant) {
+    let newCells = variant.cells.map(pt => ({ x: pt.y, y: variant.width - 1 - pt.x }));
+    let newWidth = variant.height;
+    let newHeight = variant.width;
+    return { cells: newCells, width: newWidth, height: newHeight };
+  }
+  function normalizeVariant(variant) {
+    let cells = variant.cells;
+    let minX = Infinity, minY = Infinity, maxX = -1, maxY = -1;
+    for (let pt of cells) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x > maxX) maxX = pt.x;
+      if (pt.y > maxY) maxY = pt.y;
+    }
+    for (let pt of cells) {
+      pt.x -= minX;
+      pt.y -= minY;
+    }
+    return { cells, width: maxX - minX + 1, height: maxY - minY + 1 };
+  }
+  function generateVariants(piece) {
+    if (!Array.isArray(piece.shape) || piece.shape.length === 0) return [];
+    const variants = [];
+    const seen = {};
+    let base = computeVariant(piece.shape);
+    if (base.cells.length === 0) return [];
+    function addVariant(v) {
+      const key = v.cells.map(pt => pt.x + "," + pt.y).sort().join(";");
+      if (seen[key]) return;
+      seen[key] = true;
+      variants.push(v);
+    }
+    let v = normalizeVariant(base);
+    addVariant(v);
+    for (let i = 0; i < 3; i++) {
+      v = normalizeVariant(rotateVariant(v));
+      addVariant(v);
+    }
+    return variants;
+  }
+  for (let piece of pieces) {
+    piece.variants = generateVariants(piece);
+  }
+  const cellPlacements = [];
+  for (let r = 0; r < BOARD_ROWS; r++) {
+    cellPlacements[r] = [];
+    for (let c = 0; c < BOARD_COLS; c++) {
+      cellPlacements[r][c] = [];
+    }
+  }
+  const placementsByPiece = {};
+  for (let piece of pieces) {
+    placementsByPiece[piece.id] = [];
+    for (let vIdx = 0; vIdx < piece.variants.length; vIdx++) {
+      const variant = piece.variants[vIdx];
+      for (let r = 0; r <= BOARD_ROWS - variant.height; r++) {
+        for (let c = 0; c <= BOARD_COLS - variant.width; c++) {
+          let valid = true;
+          const cells = [];
+          for (let pt of variant.cells) {
+            let rr = r + pt.y, cc = c + pt.x;
+            if (!boardMask[rr] || !boardMask[rr][cc]) { valid = false; break; }
+            cells.push({ r: rr, c: cc });
+          }
+          if (valid) {
+            const placement = { pieceId: piece.id, cells, variantIndex: vIdx, top: r, left: c };
+            placementsByPiece[piece.id].push(placement);
+            for (let cell of cells) {
+              cellPlacements[cell.r][cell.c].push(placement);
+            }
+          }
+        }
+      }
+    }
+  }
+  const usedPieces = {};
+  for (let piece of pieces) {
+    usedPieces[piece.id] = false;
+  }
+  let comboCount = 0;
+  let solutionCount = 0;
+  const solutions = [];
+  async function search(filledCount) {
+    if (filledCount === totalFill) {
+      let complete = true;
+      for (let r = 0; r < BOARD_ROWS; r++) {
+        for (let c = 0; c < BOARD_COLS; c++) {
+          if (boardMask[r][c] && sol[r][c] === 0) {
+            complete = false;
+            break;
+          }
+        }
+        if (!complete) break;
+      }
+      if (complete) {
+        solutionCount++;
+        const solCopy = sol.map(row => row.slice());
+        solutions.push(solCopy);
+      }
+      return;
+    }
+    let rFound = -1, cFound = -1;
+    outer:
+    for (let r = 0; r < BOARD_ROWS; r++) {
+      for (let c = 0; c < BOARD_COLS; c++) {
+        if (boardMask[r][c] && sol[r][c] === 0) {
+          rFound = r; cFound = c;
+          break outer;
+        }
+      }
+    }
+    if (rFound === -1) return;
+    const candidates = cellPlacements[rFound][cFound];
+    for (let placement of candidates) {
+      const pid = placement.pieceId;
+      if (usedPieces[pid]) continue;
+      let canPlace = true;
+      for (let cell of placement.cells) {
+        if (sol[cell.r][cell.c] !== 0) { canPlace = false; break; }
+      }
+      if (!canPlace) continue;
+      comboCount++;
+      document.getElementById("status").innerHTML = `現在検証した組み合わせ数：${comboCount.toLocaleString()}`;
+      usedPieces[pid] = true;
+      for (let cell of placement.cells) {
+        sol[cell.r][cell.c] = pid;
+      }
+      await search(filledCount + placement.cells.length);
+      for (let cell of placement.cells) {
+        sol[cell.r][cell.c] = 0;
+      }
+      usedPieces[pid] = false;
+      if (comboCount % 1000 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
+  function drawSolution(solution, index) {
+    let html = `<div class="solution"><h3>解答 ${index+1}</h3><table class="board-table">`;
+    for (let r = 0; r < BOARD_ROWS; r++) {
+      html += "<tr>";
+      for (let c = 0; c < BOARD_COLS; c++) {
+        let bg = "#eee";
+        if (boardMask[r][c]) {
+          if (solution[r][c] !== 0) {
+            const pid = solution[r][c];
+            const piece = pieces.find(p => p.id === pid);
+            bg = piece ? piece.color : "#fff";
+          } else {
+            bg = "#fff";
+          }
+        }
+        html += `<td style="background:${bg}"></td>`;
+      }
+      html += "</tr>";
+    }
+    html += "</table></div>";
+    return html;
+  }
+  document.getElementById("solveButton").addEventListener("click", async function(){
+    for (let r = 0; r < BOARD_ROWS; r++) {
+      for (let c = 0; c < BOARD_COLS; c++) {
+        sol[r][c] = 0;
+      }
+    }
+    for (let pid in usedPieces) { usedPieces[pid] = false; }
+    comboCount = 0;
+    solutionCount = 0;
+    solutions.length = 0;
+    document.getElementById("status").innerHTML = "計算中...";
+    await search(0);
+    let avgVerification = solutionCount === 0 ? 0 : (comboCount / solutionCount).toFixed(2);
+    let solutionRatio = comboCount === 0 ? 0 : (solutionCount / comboCount).toFixed(2);
+    let statusText = `検証した組み合わせ数：${comboCount.toLocaleString()}<br>
+                    見つかった解答数：${solutionCount}<br>
+                    平均検証数：${avgVerification}<br>
+                    解答比率：${solutionRatio}`;
+    document.getElementById("status").innerHTML = statusText;
+    let solHtml = "";
+    for (let i = 0; i < solutions.length; i++) {
+      solHtml += drawSolution(solutions[i], i);
+    }
+    document.getElementById("solutions").innerHTML = solHtml;
+  });
+  </script>
+</body>
+</html>

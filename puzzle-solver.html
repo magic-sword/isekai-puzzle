@@ -1,0 +1,423 @@
+<!--
+変更点:
+1. レイアウトを見やすく調整しました。
+2. 色合いを見やすく調整しました。
+3. スマホ対応のため、meta viewportタグとメディアクエリを追加し、画面幅に応じたレイアウト調整を行いました。
+4. エラーメッセージを調整しました。-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>プチ加護パズルソルバー</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #F8F8F8;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #FFF;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      position: relative;
+      text-align: left;
+    }
+    h1, h2, h3 {
+      text-align: center;
+      margin: 10px 0;
+    }
+    #boardContainer, #piecesContainer {
+      margin-bottom: 20px;
+    }
+    table {
+      border-collapse: collapse;
+      margin: auto;
+    }
+    td {
+      width: 40px;
+      height: 40px;
+      border: 1px solid #CCC;
+      text-align: center;
+      vertical-align: middle;
+      cursor: pointer;
+      user-select: none;
+      font-size: 18px;
+    }
+    #board td.fillable {
+      background-color: #FFFFFF;
+    }
+    #board td.non-fillable {
+      background-color: #BFBFBF;
+      cursor: default;
+    }
+    .pieceTable td.hole {
+      background-color: #BFBFBF;
+    }
+    .pieceTable td.block {
+    }
+    .piece {
+      display: inline-block;
+      margin: 10px;
+      text-align: center;
+    }
+    button {
+      background-color: #4A90E2;
+      border: none;
+      color: #FFF;
+      padding: 10px 20px;
+      margin: 10px;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #357ABD;
+    }
+    #message {
+      position: absolute;
+      bottom: 80px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-size: 18px;
+      color: red;
+      pointer-events: none;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+      }
+      .container {
+        padding: 10px;
+        text-align: center;
+      }
+      td {
+        width: 30px;
+        height: 30px;
+        font-size: 16px;
+      }
+      button {
+        padding: 8px 16px;
+        font-size: 14px;
+        margin: 5px;
+      }
+      #message {
+        font-size: 16px;
+        bottom: 70px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>プチ加護パズルソルバー</h1>
+    <div id="boardContainer">
+      <h2>加護ボード</h2>
+      <table id="board"></table>
+    </div>
+    <div id="piecesContainer">
+      <h2>加護片（クリックで形を調整）</h2>
+      <div class="piece" id="piece1Container">
+        <h3>① (赤)</h3>
+        <table class="pieceTable" id="piece1"></table>
+      </div>
+      <div class="piece" id="piece2Container">
+        <h3>② (青)</h3>
+        <table class="pieceTable" id="piece2"></table>
+      </div>
+      <div class="piece" id="piece3Container">
+        <h3>③ (黄)</h3>
+        <table class="pieceTable" id="piece3"></table>
+      </div>
+      <div class="piece" id="piece4Container">
+        <h3>④ (緑)</h3>
+        <table class="pieceTable" id="piece4"></table>
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <button id="solveButton">埋める！</button>
+      <button id="resetButton">リセット</button>
+    </div>
+    <div id="message"></div>
+  </div>
+  <script>
+    const boardPattern = [
+      [0,0,0,0,0,0],
+      [0,1,1,1,1,0],
+      [0,1,1,1,1,0],
+      [0,1,1,1,1,0],
+      [0,1,1,1,1,0],
+      [0,0,0,0,0,0]
+    ];
+    const boardRows = 6, boardCols = 6;
+    const pieces = [
+      { id: 1, color: "#FF8A80", grid: Array(4).fill(0).map(() => Array(4).fill(0)) },
+      { id: 2, color: "#80D8FF", grid: Array(4).fill(0).map(() => Array(4).fill(0)) },
+      { id: 3, color: "#FFFF8D", grid: Array(4).fill(0).map(() => Array(4).fill(0)) },
+      { id: 4, color: "#B9F6CA", grid: Array(4).fill(0).map(() => Array(4).fill(0)) }
+    ];
+    const pieceSize = 4;
+    let boardState = [];
+    function renderBoard() {
+      const boardTable = document.getElementById("board");
+      boardTable.innerHTML = "";
+      boardState = [];
+      for (let r = 0; r < boardRows; r++) {
+        let row = [];
+        const tr = document.createElement("tr");
+        for (let c = 0; c < boardCols; c++) {
+          const td = document.createElement("td");
+          td.dataset.row = r;
+          td.dataset.col = c;
+          if (boardPattern[r][c] === 1) {
+            td.classList.add("fillable");
+            td.style.backgroundColor = "#FFFFFF";
+          } else {
+            td.classList.add("non-fillable");
+            td.style.backgroundColor = "#BFBFBF";
+          }
+          tr.appendChild(td);
+          row.push(0);
+        }
+        boardTable.appendChild(tr);
+        boardState.push(row);
+      }
+    }
+    function renderPieces() {
+      for (let i = 0; i < pieces.length; i++) {
+        const piece = pieces[i];
+        const table = document.getElementById("piece" + piece.id);
+        table.innerHTML = "";
+        for (let r = 0; r < pieceSize; r++) {
+          const tr = document.createElement("tr");
+          for (let c = 0; c < pieceSize; c++) {
+            const td = document.createElement("td");
+            td.dataset.row = r;
+            td.dataset.col = c;
+            if (piece.grid[r][c] === 1) {
+              td.classList.add("block");
+              td.style.backgroundColor = piece.color;
+            } else {
+              td.classList.add("hole");
+              td.style.backgroundColor = "#BFBFBF";
+            }
+            td.addEventListener("click", function() {
+              if (piece.grid[r][c] === 0) {
+                piece.grid[r][c] = 1;
+                td.classList.remove("hole");
+                td.classList.add("block");
+                td.style.backgroundColor = piece.color;
+              } else {
+                piece.grid[r][c] = 0;
+                td.classList.remove("block");
+                td.classList.add("hole");
+                td.style.backgroundColor = "#BFBFBF";
+              }
+            });
+            tr.appendChild(td);
+          }
+          table.appendChild(tr);
+        }
+      }
+    }
+    function rotateMatrix(matrix) {
+      const n = matrix.length, m = matrix[0].length;
+      let ret = [];
+      for (let c = 0; c < m; c++) {
+        let newRow = [];
+        for (let r = n - 1; r >= 0; r--) {
+          newRow.push(matrix[r][c]);
+        }
+        ret.push(newRow);
+      }
+      return ret;
+    }
+    function getRotations(pieceGrid) {
+      let rotations = [];
+      let current = pieceGrid;
+      for (let i = 0; i < 4; i++) {
+        let found = rotations.some(mat => JSON.stringify(mat) === JSON.stringify(current));
+        if (!found) {
+          rotations.push(current);
+        }
+        current = rotateMatrix(current);
+      }
+      return rotations;
+    }
+    function isConnected(grid) {
+      let visited = Array(pieceSize).fill(0).map(() => Array(pieceSize).fill(false));
+      let total = 0, start = null;
+      for (let r = 0; r < pieceSize; r++) {
+        for (let c = 0; c < pieceSize; c++) {
+          if (grid[r][c] === 1) {
+            total++;
+            if (start === null) start = [r, c];
+          }
+        }
+      }
+      if (total === 0) return true;
+      let stack = [start];
+      visited[start[0]][start[1]] = true;
+      let count = 0;
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      while (stack.length) {
+        let [r, c] = stack.pop();
+        count++;
+        for (let [dr, dc] of dirs) {
+          let nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < pieceSize && nc >= 0 && nc < pieceSize &&
+              !visited[nr][nc] && grid[nr][nc] === 1) {
+            visited[nr][nc] = true;
+            stack.push([nr, nc]);
+          }
+        }
+      }
+      return count === total;
+    }
+    function checkAllPiecesConnectivity() {
+      let problematic = [];
+      for (let piece of pieces) {
+        let count = 0;
+        for (let r = 0; r < pieceSize; r++) {
+          for (let c = 0; c < pieceSize; c++) {
+            if (piece.grid[r][c] === 1) count++;
+          }
+        }
+        if (count > 0 && !isConnected(piece.grid)) {
+          problematic.push(piece.id);
+        }
+      }
+      if (problematic.length === 1) {
+        document.getElementById("message").textContent =
+          "エラー：加護片" + problematic[0] + "のブロックが連結していません。";
+        return false;
+      } else if (problematic.length > 1) {
+        document.getElementById("message").textContent =
+          "エラー：複数の加護片のブロックが連結していません。（加護片" + problematic.join(", ") + "）";
+        return false;
+      }
+      return true;
+    }
+    function totalBlocks() {
+      let sum = 0;
+      for (let piece of pieces) {
+        for (let r = 0; r < pieceSize; r++) {
+          for (let c = 0; c < pieceSize; c++) {
+            if (piece.grid[r][c] === 1) sum++;
+          }
+        }
+      }
+      return sum;
+    }
+    function canPlace(boardArr, pattern, dr, dc) {
+      for (let r = 0; r < pieceSize; r++) {
+        for (let c = 0; c < pieceSize; c++) {
+          if (pattern[r][c] === 1) {
+            let R = dr + r, C = dc + c;
+            if (R < 0 || R >= boardRows || C < 0 || C >= boardCols) return false;
+            if (boardPattern[R][C] !== 1) return false;
+            if (boardArr[R][C] !== 0) return false;
+          }
+        }
+      }
+      return true;
+    }
+    function placePiece(boardArr, pattern, dr, dc, pieceId) {
+      let newBoard = boardArr.map(row => row.slice());
+      for (let r = 0; r < pieceSize; r++) {
+        for (let c = 0; c < pieceSize; c++) {
+          if (pattern[r][c] === 1) {
+            newBoard[dr + r][dc + c] = pieceId;
+          }
+        }
+      }
+      return newBoard;
+    }
+    function boardComplete(boardArr) {
+      for (let r = 0; r < boardRows; r++) {
+        for (let c = 0; c < boardCols; c++) {
+          if (boardPattern[r][c] === 1 && boardArr[r][c] === 0) return false;
+        }
+      }
+      return true;
+    }
+    function solveRecursive(boardArr, piecesIdx) {
+      if (piecesIdx === pieces.length) {
+        if (boardComplete(boardArr)) return boardArr;
+        return null;
+      }
+      const piece = pieces[piecesIdx];
+      let rotations = getRotations(piece.grid);
+      for (let pat of rotations) {
+        for (let r = 0; r <= boardRows - pieceSize; r++) {
+          for (let c = 0; c <= boardCols - pieceSize; c++) {
+            if (canPlace(boardArr, pat, r, c)) {
+              let newBoard = placePiece(boardArr, pat, r, c, piece.id);
+              let result = solveRecursive(newBoard, piecesIdx + 1);
+              if (result !== null) return result;
+            }
+          }
+        }
+      }
+      return null;
+    }
+    function solvePuzzle() {
+      document.getElementById("message").textContent = "";
+      if (pieces.length !== 4) {
+        document.getElementById("message").textContent = "エラー：加護片は4種類必要です。";
+        return;
+      }
+      if (!checkAllPiecesConnectivity()) return;
+      if (totalBlocks() !== 16) {
+        document.getElementById("message").textContent = "エラー：全加護片のブロック数の合計が16になっていません。";
+        return;
+      }
+      const sol = solveRecursive(boardState, 0);
+      if (sol === null) {
+        document.getElementById("message").textContent = "エラー：盤面を正しく埋められません。";
+      } else {
+        boardState = sol;
+        renderSolution();
+      }
+    }
+    function renderSolution() {
+      const boardTable = document.getElementById("board");
+      for (let r = 0; r < boardRows; r++) {
+        for (let c = 0; c < boardCols; c++) {
+          const cell = boardTable.rows[r].cells[c];
+          if (boardPattern[r][c] === 1) {
+            if (boardState[r][c] !== 0) {
+              let piece = pieces.find(p => p.id === boardState[r][c]);
+              cell.style.backgroundColor = piece.color;
+            } else {
+              cell.style.backgroundColor = "#FFFFFF";
+            }
+          }
+        }
+      }
+    }
+    function resetAll() {
+      renderBoard();
+      for (let piece of pieces) {
+        for (let r = 0; r < pieceSize; r++) {
+          for (let c = 0; c < pieceSize; c++) {
+            piece.grid[r][c] = 0;
+          }
+        }
+      }
+      renderPieces();
+      document.getElementById("message").textContent = "";
+    }
+    document.getElementById("solveButton").addEventListener("click", solvePuzzle);
+    document.getElementById("resetButton").addEventListener("click", resetAll);
+    renderBoard();
+    renderPieces();
+  </script>
+</body>
+</html>
