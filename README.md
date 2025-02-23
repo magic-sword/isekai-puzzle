@@ -1,6 +1,10 @@
 # isekai-puzzle
 異世界∞異世界のパズルを作るプログラム　元はruさんにより製作されました
 
+Webアプリ
+
+https://script.google.com/macros/s/AKfycbzcD8fT6qYRu1Z3FsrCxYiRkUv2x1jrVB93yHFJGitOdjjA4cpS_7ycRl6FXggJZFldjQ/exec
+
 # 開発環境
 
 Google Apps Script上で、Webアプリケーションとして動作させます
