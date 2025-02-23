@@ -1,9 +1,9 @@
 <!--
-変更点:
-1. レイアウトを見やすく調整しました。
-2. 色合いを見やすく調整しました。
-3. スマホ対応のため、meta viewportタグとメディアクエリを追加し、画面幅に応じたレイアウト調整を行いました。
-4. エラーメッセージを調整しました。-->
+ver.1.1変更点:
+1 加護ボードが埋めることができる状態にも拘らず、正しく埋められませんと表示される問題を修正しました。
+2. スマホ表示の時エラーメッセージが正しく表示されない問題を修正しました。
+3. PC版のレイアウトが全体的に左寄りになっている問題を修正しました。
+4. その他細かい問題を修正しました。-->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -22,7 +22,7 @@
       max-width: 900px;
       margin: auto;
       background: #FFF;
-      padding: 20px;
+      padding: 20px 20px 100px 20px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
       position: relative;
@@ -34,6 +34,9 @@
     }
     #boardContainer, #piecesContainer {
       margin-bottom: 20px;
+    }
+    #piecesContainer {
+      text-align: center;
     }
     table {
       border-collapse: collapse;
@@ -94,7 +97,7 @@
         padding: 10px;
       }
       .container {
-        padding: 10px;
+        padding: 10px 10px 80px 10px;
         text-align: center;
       }
       td {
@@ -109,7 +112,9 @@
       }
       #message {
         font-size: 16px;
-        bottom: 70px;
+        position: relative;
+        bottom: auto;
+        margin-top: 10px;
       }
     }
   </style>
@@ -354,9 +359,10 @@
       }
       const piece = pieces[piecesIdx];
       let rotations = getRotations(piece.grid);
+      // 探索範囲を拡大：4×4枠の左上の位置は負の値も許容する
       for (let pat of rotations) {
-        for (let r = 0; r <= boardRows - pieceSize; r++) {
-          for (let c = 0; c <= boardCols - pieceSize; c++) {
+        for (let r = -pieceSize + 1; r < boardRows; r++) {
+          for (let c = -pieceSize + 1; c < boardCols; c++) {
             if (canPlace(boardArr, pat, r, c)) {
               let newBoard = placePiece(boardArr, pat, r, c, piece.id);
               let result = solveRecursive(newBoard, piecesIdx + 1);
@@ -378,12 +384,14 @@
         document.getElementById("message").textContent = "エラー：全加護片のブロック数の合計が16になっていません。";
         return;
       }
+      renderBoard();
       const sol = solveRecursive(boardState, 0);
       if (sol === null) {
-        document.getElementById("message").textContent = "エラー：盤面を正しく埋められません。";
+        document.getElementById("message").textContent = "エラー：加護ボードを正しく埋められません。";
       } else {
         boardState = sol;
         renderSolution();
+        document.getElementById("message").textContent = "成功！";
       }
     }
     function renderSolution() {
